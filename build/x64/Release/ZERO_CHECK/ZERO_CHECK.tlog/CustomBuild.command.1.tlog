@@ -1,0 +1,10 @@
+^D:\GITPOL\CSAD2526KI405SHUSTAKEVYCHVLADYSLAV29\BUILD\CMAKEFILES\6CEE14754C4B034814AC28EF6C234609\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SD:/gitpol/csad2526ki405shustakevychvladyslav29 -BD:/gitpol/csad2526ki405shustakevychvladyslav29/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file D:/gitpol/csad2526ki405shustakevychvladyslav29/build/HelloWorld.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

@@ -1,0 +1,3 @@
+D:/gitpol/csad2526ki405shustakevychvladyslav29/build/_deps/googletest-subbuild/CMakeFiles/googletest-populate.dir
+D:/gitpol/csad2526ki405shustakevychvladyslav29/build/_deps/googletest-subbuild/CMakeFiles/ALL_BUILD.dir
+D:/gitpol/csad2526ki405shustakevychvladyslav29/build/_deps/googletest-subbuild/CMakeFiles/ZERO_CHECK.dir
