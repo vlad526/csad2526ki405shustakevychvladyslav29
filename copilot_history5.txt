@@ -1,0 +1,19 @@
+Request:
+GitHub Actions workflow in YAML. Name: Cross-Platform CMake CI. Trigger on push/pull_request to branches containing 'develop' or 'master'. Create a job 'cross_build' that uses a strategy matrix to run on 'ubuntu-latest', 'windows-latest', and 'macos-latest'. The steps must check out the code, run the CI script ci.sh or ci.bat depending on the OS, and then execute a deploy step.
+
+Response:
+What I added
+
+File: ci.yml
+Triggers: push and pull_request to branches matching 'develop' or 'master'
+Job: cross_build using a matrix over:
+ubuntu-latest
+windows-latest
+macos-latest
+Steps:
+Checkout code (actions/checkout@v4)
+Setup Python on Unix runners (some ctest integrations rely on it)
+Make ci.sh executable on Unix (no-op on Windows)
+Run ci.sh on Linux/macOS
+Run ci.bat on Windows (cmd shell)
+A placeholder Deploy step (echo message)
