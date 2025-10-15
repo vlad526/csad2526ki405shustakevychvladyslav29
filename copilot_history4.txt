@@ -1,0 +1,42 @@
+Request:
+Batch script for Windows CI: create and enter a new 'build' directory, run 'cmake ..' for configuration,
+run 'cmake --build .' for building, and finally run 'ctest --output-on-failure'.
+Ensure the script checks for errors after each major command.
+
+Response:
+
+Done! Now the ci.bat file for Windows:
+Creates and enters the build directory.
+Configures the project: cmake ..
+Builds the project: cmake --build .
+Runs the tests: ctest --output-on-failure
+After each command, it checks for errors and stops execution upon failure.
+--------------------------------------------------------------------------
+
+Request:
+Shell script that runs CI: clean existing build directory, create and enter a new 'build' directory, run 'cmake ..' for configuration,
+run 'cmake --build .' for building, and finally run 'ctest --output-on-failure'. 
+The script must exit immediately if any command fails.
+
+Response:
+
+Here's the complete shell script for CI:
+
+#!/usr/bin/env bash
+set -e
+
+# Remove existing build directory
+rm -rf build
+
+# Create and enter build directory
+mkdir build
+cd build
+
+# Configure project
+cmake ..
+
+# Build project
+cmake --build .
+
+# Run tests
+ctest --output-on-failure
