@@ -36,4 +36,5 @@ enable_testing()
 add_executable(unit_tests tests/unit_tests.cpp)
 target_link_libraries(unit_tests PRIVATE GTest::gtest_main math_operations)
 include(GoogleTest)
-gtest_discover_tests(unit_tests)
+# Increase discovery timeout to avoid CI test discovery timeouts on slow runners
+gtest_discover_tests(unit_tests PROPERTIES DISCOVERY_TIMEOUT 60)
