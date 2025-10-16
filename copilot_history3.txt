@@ -1,0 +1,85 @@
+Request:
+У math_operations.h створи функцію int add(int a ,int b)
+
+Copilot response:
+
+Ready — I've added the addition function.
+What has been done
+Added the declaration to math_operations.h: int add(int a, int b);
+The file now contains simple include-guards.
+Implemented the function in math_operations.cpp: int add(int a, int b) { return a + b; }
+Ran an error check — no errors found.
+Changed files
+math_operations.h — added declaration and include-guards.
+math_operations.cpp — added implementation of add.
+-------------------------------------------------------
+
+Request:
+Напиши юніт тести
+
+Copilot response:
+
+Ready — I've added simple unit tests and configured CMake.
+Brief summary of changes
+New file: unit_tests.cpp
+Simple hand-rolled test runner with an ASSERT_EQ macro.
+Tests for add(2, 3), add(2, -3), add(0, 0), and a case with larger numbers (within the bounds of 32-bit int).
+Updated CMakeLists.txt
+Added enable_testing().
+Added the unit_tests target (built from unit_tests.cpp).
+Registered the test using add_test(NAME unit_tests COMMAND unit_tests).
+-------------------------------------------------------
+
+Request:
+для CMakeLists.txt додати підтримку Google Test
+
+Copilot response:
+
+Ready — I've updated the project to use Google Test via FetchContent in CMakeLists.txt and refactored unit_tests.cpp to use the Google Test framework. 
+The local build attempt using the NMake generator failed due to the nmake command being missing in your environment 
+(typically because Visual Studio Build Tools aren't installed or a different generator is preferred).
+
+
+"What am I doing right now? If you want, choose an option:
+1.I will restart the build here with the Visual Studio generator (specify version).
+2.I will restart with Ninja (if you install Ninja).
+3.You only want instructions — I will send ready-made commands for PowerShell."
+----------------------------------------------------------------------
+
+Request:
+1
+
+Copilot response:
+
+Ready — I've successfully integrated GoogleTest support into CMakeLists.txt.
+Summary of Changes and Results
+CMake Integration
+GoogleTest Setup: Implemented logic to first attempt to find a locally installed GTest; if unavailable, it uses FetchContent to download it from GitHub.
+Target Configuration: Added the unit_tests target, linked it to GTest::gtest_main, and employed gtest_discover_tests for automatic test registration.
+Linking: Added the math_operations library and linked it to both the main HelloWorld executable and the unit_tests target.
+Unit Tests
+The manual runner in unit_tests.cpp was replaced with Google Test syntax.
+Build and Test Results (Using Visual Studio 2022 Generator)
+The CMake run, build, and tests executed successfully within the build directory:
+GoogleTest was successfully downloaded and built.
+The unit_tests.exe executable was successfully compiled.
+4 tests were run — all passed.
+----------------------------------------------------------------------
+
+Request:
+Додай інструкцію для створення тестового виконвануго файлу та запуску тестів
+
+Copilot response:
+
+Ready — I've updated the `README.md` with detailed instructions covering:
+General project build:
+Building and running tests.
+Running individual test cases.
+Troubleshooting possible issues.
+Key Sections Added:
+Prerequisites** (including requirements for GoogleTest).
+Building and Running Tests with step-by-step instructions.
+Options for Running Specific Tests (via `gtest_filter`).
+Troubleshooting with common problems and their solutions.
+
+
