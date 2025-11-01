@@ -20,11 +20,11 @@ entity i2c_master_rx is
   port (
     clk       : in  std_logic;
     rst_n     : in  std_logic;
-    start_rx  : in  std_logic;  -- pulse to start receiving one byte
-    scl_rise  : in  std_logic;  -- strobe: SCL rising
-    sda_in    : in  std_logic;  -- sampled SDA
+    start_rx  : in  std_logic;  -- імпульс для початку прийому одного байту
+    scl_rise  : in  std_logic;  -- строб при наростаючому фронті SCL
+    sda_in    : in  std_logic;  -- зчитане значення SDA
     data_out  : out std_logic_vector(7 downto 0);
-    data_valid: out std_logic;  -- pulse when data_out valid
+    data_valid: out std_logic;  -- імпульс при готовності data_out
     busy      : out std_logic
   );
 end entity;

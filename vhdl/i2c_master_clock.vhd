@@ -7,7 +7,7 @@ use ieee.numeric_std.all;
 -- Призначення:
 --   Генерує внутрішній SCL сигнал з більш швидкого системного тактового сигналу.
 --   Модуль виробляє push-pull SCL вихід (верхній рівень повинен перетворити
---   його в open-drain за потреби) та два імпульси шириною в один такт:
+--   його в open-drain (відкритий стік) за потреби) та два імпульси шириною в один такт:
 --     * scl_rise - імпульс при переході SCL з низького в високий рівень
 --     * scl_fall - імпульс при переході SCL з високого в низький рівень
 --
@@ -23,15 +23,15 @@ use ieee.numeric_std.all;
 --   scl_fall : імпульс при спадаючому фронті SCL (шириною один такт)
 entity i2c_master_clock is
   generic (
-    PRESCALER : natural := 250  -- divide sys_clk to get SCL; adjust to get desired frequency
+    PRESCALER : natural := 250  -- кількість тактів системного годинника на півперіод SCL
   );
   port (
     clk      : in  std_logic;
     rst_n    : in  std_logic;
     enable   : in  std_logic := '1';
-    scl      : out std_logic;       -- generated SCL (push-pull); top-level can implement open-drain
-    scl_rise : out std_logic;       -- pulse on rising edge of scl (one clk wide)
-    scl_fall : out std_logic        -- pulse on falling edge of scl (one clk wide)
+  scl      : out std_logic;       -- згенерований SCL (push-pull); верхній рівень може реалізувати open-drain (відкритий стік)
+    scl_rise : out std_logic;       -- імпульс при наростаючому фронті SCL (ширина 1 такт)
+    scl_fall : out std_logic        -- імпульс при спадаючому фронті SCL (ширина 1 такт)
   );
 end entity;
 
@@ -49,7 +49,7 @@ begin
   -- Основний дільник частоти: збільшує cnt на кожному такті системного
   -- годинника; при досягненні PRESCALER-1 перемикає SCL та генерує
   -- одиночний імпульс на відповідному виході (scl_rise або scl_fall).
-  -- Вхід enable дозволяє основному FSM призупиняти генерацію SCL за потреби.
+  -- Вхід enable дозволяє іншим блокам призупиняти генерацію SCL за потреби.
   process(clk, rst_n)
   begin
     if rst_n = '0' then
@@ -58,22 +58,21 @@ begin
       scl_rise <= '0';
       scl_fall <= '0';
     elsif rising_edge(clk) then
-      -- default: clear strobes every cycle
+      -- скидаємо однотактові строби за замовчуванням
       scl_rise <= '0';
       scl_fall <= '0';
       if enable = '1' then
         if cnt = PRESCALER - 1 then
-          -- Half-period elapsed: toggle SCL
+          -- Півперіод вичерпано: перемикаємо SCL
           cnt <= (others => '0');
           scl_reg <= not scl_reg;
-          -- Emit a pulse on the appropriate edge strobe. Note that we check
-          -- the previous value of scl_reg to determine which edge just
-          -- occurred.
+          -- Генеруємо однотактовий імпульс на відповідному стробі залежно
+          -- від попереднього стану scl_reg (щоб визначити, який фронт стався).
           if scl_reg = '0' then
-            -- prior value 0 -> now 1 => rising edge
+            -- попереднє значення 0 -> тепер 1: наростаючий фронт
             scl_rise <= '1';
           else
-            -- prior value 1 -> now 0 => falling edge
+            -- попереднє значення 1 -> тепер 0: спадаючий фронт
             scl_fall <= '1';
           end if;
         else

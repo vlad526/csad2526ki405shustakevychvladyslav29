@@ -16,23 +16,20 @@ use ieee.numeric_std.all;
 --                 для зчитування SDA для ACK або вирівнювання змін даних по спаду SCL).
 --   scl_fall    : однотактовий строб при спадаючому фронті SCL (для встановлення наступного біта).
 --   sda_in      : зчитане значення лінії SDA (для зчитування ACK) від верхнього рівня.
---   sda_out     : керування виходом SDA: '0' для притягування до землі, 'Z' для відпускання (open-drain).
---   busy        : '1' під час процесу передачі.
---   ack_received: зчитаний біт ACK після передачі байту (0 = ACK, 1 = NACK).
---   done        : однотактовий імпульс, що сигналізує завершення передачі байту та зчитування ACK.
+--   sda_out     : керування виходом SDA: '0' для притягування до землі, 'Z' для відпускання (open-drain / відкритий стік).
 entity i2c_master_tx is
   port (
-    clk         : in  std_logic;  -- system clock (same domain as clock generator)
+    clk         : in  std_logic;  -- системний тактовий сигнал (той самий домен, що й генератор)
     rst_n       : in  std_logic;
-    start_tx    : in  std_logic;  -- pulse to start transmitting data_in
+    start_tx    : in  std_logic;  -- імпульс для початку передачі data_in
     data_in     : in  std_logic_vector(7 downto 0);
-    scl_rise    : in  std_logic;  -- strobe: SCL rising
-    scl_fall    : in  std_logic;  -- strobe: SCL falling
-    sda_in      : in  std_logic;  -- sample SDA for ACK
-    sda_out     : out std_logic;  -- drive SDA: '0' to pull low, 'Z' to release
-    busy        : out std_logic;  -- high while transaction in progress
-    ack_received: out std_logic;  -- sampled ACK (0 = ACK, 1 = NACK)
-    done        : out std_logic   -- pulse when byte tx + ack complete
+    scl_rise    : in  std_logic;  -- строб при наростаючому фронті SCL
+    scl_fall    : in  std_logic;  -- строб при спадаючому фронті SCL
+    sda_in      : in  std_logic;  -- зчитане значення SDA (для ACK)
+    sda_out     : out std_logic;  -- керування SDA: '0' притягнути, 'Z' відпустити
+    busy        : out std_logic;  -- '1' під час передачі
+    ack_received: out std_logic;  -- зчитаний ACK (0 = ACK, 1 = NACK)
+    done        : out std_logic   -- імпульс при завершенні передачі байту та ACK
   );
 end entity;
 
@@ -77,16 +74,16 @@ begin
           state <= START;
         end if;
       elsif state = START then
-        -- prepare to drive first bit on SCL falling edge
+        -- підготовка до виставлення першого біта на падінні SCL
         if scl_fall = '1' then
           sda_drive <= shift_reg(bit_cnt);
           state <= SEND_BIT;
         end if;
       elsif state = SEND_BIT then
-        -- on SCL rising we sample nothing, on falling we prepare next bit
+        -- на підйомі SCL ми нічого не змінюємо; на падінні готуємо наступний біт
         if scl_fall = '1' then
           if bit_cnt = 0 then
-            sda_drive <= 'Z'; -- release SDA for ACK bit
+            sda_drive <= 'Z'; -- відпустити SDA для ACK
             state <= RECV_ACK;
           else
             bit_cnt <= bit_cnt - 1;
@@ -94,9 +91,9 @@ begin
           end if;
         end if;
       elsif state = RECV_ACK then
-        -- sample ACK on SCL rising
+        -- зчитування ACK на наростаючому фронті SCL
         if scl_rise = '1' then
-          ack_r <= sda_in; -- '0' means ACK
+          ack_r <= sda_in; -- '0' означає ACK
           state <= FINISH;
         end if;
       elsif state = FINISH then
