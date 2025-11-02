@@ -1,14 +1,28 @@
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
 -- Верхній рівень I2C Master
 --
 -- Призначення:
---   Забезпечити просту реалізацію I2C master, яка може виконувати одиничну
---   операцію запису або читання байту до 7-бітної адреси slave-пристрою.
---   Верхній рівень інстанціює генератор SCL, блок передачі (Tx) та блок прийому (Rx)
---   та координує послідовності START/адреса/дані/STOP через невеликий FSM.
+--   Забезпечує просту реалізацію I2C master, яка може виконувати одиночні
+--   операції запису або читання байту за 7-бітною адресою slave-пристрою.
+--   Цей верхній рівень містить генератор тактового сигналу, передавач та
+--   приймач і координує послідовність start/адреса/дані/stop через невеликий FSM.
 --
--- Фізичні лінії:
+-- Порти (зовнішній інтерфейс):
+--   clk    : системний тактовий сигнал для логіки master
+--   rst_n  : скидання активне низьким рівнем
+--   start  : імпульс для початку транзакції (адреса + опціональні дані)
+--   addr   : 7-бітна I2C адреса slave-пристрою
+--   rw     : прапор читання/запису ('0'=запис, '1'=читання)
+--   data_in: байт для відправки при операції запису
+--   data_out: байт, отриманий під час операцій читання
+--   busy   : вказує, що master зайнятий виконанням транзакції
+--
+-- Фізичний ввід/вивід:
 --   sda : двонаправлена лінія SDA з відкритим стоком (потрібні зовнішні підтяжки)
---   scl : лінія SCL, що генерується master
+--   scl : лінія SCL, що генерується master (семантика відкритого стоку через sda)
 entity i2c_master is
   generic (
     PRESCALER : natural := 250
@@ -16,28 +30,29 @@ entity i2c_master is
   port (
     clk      : in  std_logic;
     rst_n    : in  std_logic;
-  start    : in  std_logic;  -- імпульс початку транзакції (для демонстрації)
-  addr     : in  std_logic_vector(6 downto 0); -- 7-бітна адреса
-  rw       : in  std_logic;  -- '0' = запис, '1' = читання
+    start    : in  std_logic;  -- start a write transaction (for demo)
+    addr     : in  std_logic_vector(6 downto 0); -- 7-bit address
+    rw       : in  std_logic;  -- '0' = write, '1' = read
     data_in  : in  std_logic_vector(7 downto 0);
     data_out : out std_logic_vector(7 downto 0);
     busy     : out std_logic;
 
-    -- Фізичні лінії I2C (поведінка open-drain (відкритий стік) реалізується через SDA)
+    -- I2C physical lines (open-drain semantics)
     sda      : inout std_logic;
     scl      : out   std_logic
   );
 end entity;
 
 architecture rtl of i2c_master is
-  -- Сигнали SCL, що надає генератор тактового сигналу
+  -- SCL signals provided by the clock generator
   signal scl_sig, scl_rise, scl_fall : std_logic;
 
-  -- Сигнал дозволу для генератора SCL (дозволяє призупиняти SCL)
+  -- Enable signal for the clock generator (allows pausing SCL)
   signal clk_enable : std_logic := '1';
 
-  -- Внутрішнє керування SDA для реалізації open-drain: '0' притягує лінію,
-  -- 'Z' відпускає лінію і дозволяє зовнішній підтяжці підняти її.
+  -- Внутрішнє керування SDA для реалізації поведінки відкритого стоку
+  -- від внутрішніх драйверів: '0' для притягування лінії SDA до землі,
+  -- 'Z' для відпускання лінії, дозволяючи зовнішній підтяжці підняти її вгору.
   signal sda_drive : std_logic := 'Z';
   -- sda_in зчитує зовнішню лінію SDA для ACK та отриманих даних
   signal sda_in    : std_logic;
@@ -95,28 +110,34 @@ architecture rtl of i2c_master is
   signal rx_busy_sig : std_logic;
 
   -- Простий FSM master, що керує послідовністю транзакцій високого рівня:
-  --   IDLE, START_COND, SEND_ADDR, SEND_DATA, RECV_DATA, STOP_COND, DONE
+  --   IDLE       - очікування запиту `start`
+  --   START_COND - встановлення SDA в низький рівень при високому SCL для генерації START
+  --   SEND_ADDR  - відправка 7-бітної адреси + біт R/W через блок Tx
+  --   SEND_DATA  - відправка байту(ів) даних через блок Tx
+  --   RECV_DATA  - прийом байту від slave-пристрою через блок Rx
+  --   STOP_COND  - відпускання SDA при високому SCL для генерації STOP
+  --   DONE       - завершення та повернення до IDLE
   type t_state is (IDLE, START_COND, SEND_ADDR, SEND_DATA, RECV_DATA, STOP_COND, DONE);
   signal state : t_state := IDLE;
 
   -- address + R/W encoded into an 8-bit value for the transmitter
   signal addr_rw : std_logic_vector(7 downto 0);
 
-  -- однотактові імпульси для запуску нижчого рівня Tx/Rx (генеруються на один такт)
+  -- pulses to start the lower-level Tx/Rx modules (generated for one cycle)
   signal start_tx_pulse : std_logic := '0';
   signal start_rx_pulse : std_logic := '0';
 
-  -- захоплений байт, отриманий під час операцій читання
+  -- captured output byte from read operations
   signal data_out_r : std_logic_vector(7 downto 0) := (others => '0');
 
 begin
-  -- Реалізація поведінки open-drain на верхній лінії SDA: якщо будь-який
-  -- внутрішній драйвер тягне лінію в '0' — виводимо '0', інакше відпускаємо
-  -- ('Z') і покладаємось на зовнішню підтяжку вгору.
+  -- Implement open-drain behavior on the top-level SDA pin by driving
+  -- '0' when any internal driver pulls low, otherwise release ('Z') and rely
+  -- on external pull-ups.
   sda <= '0' when sda_drive = '0' else 'Z';
-  -- Значення SDA доступне внутрішнім модулям
+  -- Sampled SDA value available to internal units
   sda_in <= sda;
-  -- Виводимо згенерований SCL назовні
+  -- Expose generated SCL to the outside
   scl <= scl_sig;
 
   U_CLK: i2c_master_clock
@@ -133,6 +154,9 @@ begin
               sda_in => sda_in, data_out => rx_data, data_valid => rx_valid, busy => rx_busy_sig);
 
   -- Головний FSM: координує START, передачу адреси/даних та STOP.
+  -- Примітка: це спрощена послідовність, придатна для передачі одного байту
+  -- в демонстраційних сценаріях. Реальне використання повинно додавати
+  -- таймаути, підтримку багатобайтових передач та обробку помилок.
   process(clk, rst_n)
   begin
     if rst_n = '0' then
@@ -142,78 +166,64 @@ begin
       start_rx_pulse <= '0';
       data_out_r <= (others => '0');
     elsif rising_edge(clk) then
-  -- скидаємо однотактові імпульси за замовчуванням
-  start_tx_pulse <= '0';
-  start_rx_pulse <= '0';
+      -- default: clear one-cycle pulses
+      start_tx_pulse <= '0';
+      start_rx_pulse <= '0';
       case state is
         when IDLE =>
-          -- очікуємо зовнішнього запиту на початок транзакції
+          -- wait for external request to start a transaction
           if start = '1' then
             state <= START_COND;
           end if;
         when START_COND =>
-          -- Генеруємо START: SDA низький при високому SCL
+          -- Generate I2C START condition: SDA low while SCL is high.
           sda_drive <= '0';
-          -- Чекаємо одного падіння SCL перед початком передачі бітів
+          -- Wait for one falling edge of SCL to align bit transfers
           if scl_fall = '1' then
-            addr_rw <= addr & rw; -- сформувати 7-бітну адресу + біт R/W
+            addr_rw <= addr & rw; -- compose 7-bit address + R/W bit
             start_tx_pulse <= '1';
             state <= SEND_ADDR;
           end if;
         when SEND_ADDR =>
-          -- Керуємо SDA відповідно до виходу TX, коли TX зайнятий; інакше відпускаємо
-          if (tx_busy = '1' or tx_done = '0') then
-            sda_drive <= tx_sda_out;
-          else
-            sda_drive <= 'Z';
-          end if;
-          
+          -- drive SDA according to TX module when busy; otherwise release
+          sda_drive <= tx_sda_out when tx_busy = '1' or tx_done = '0' else 'Z';
           if tx_done = '1' then
             if rw = '0' then
-              -- запис: відправити наступний байт даних
+              -- write: send data next
               start_tx_pulse <= '1';
               state <= SEND_DATA;
             else
-              -- читання: запустити RX для прийому байту
+              -- read: start RX unit to capture incoming byte
               start_rx_pulse <= '1';
               state <= RECV_DATA;
             end if;
           end if;
         when SEND_DATA =>
-          -- Передача даних через TX; відпускати SDA коли TX завершив байт
-          if (tx_busy = '1' or tx_done = '0') then
-            sda_drive <= tx_sda_out;
-          else
-            sda_drive <= 'Z';
-          end if;
-          
+          sda_drive <= tx_sda_out when tx_busy = '1' or tx_done = '0' else 'Z';
           if tx_done = '1' then
             state <= STOP_COND;
           end if;
         when RECV_DATA =>
-          -- Відпускаємо SDA та чекаємо, поки RX встановить data_valid
+          -- release SDA and wait for RX to assert data_valid
           sda_drive <= 'Z';
           if rx_valid = '1' then
             data_out_r <= rx_data;
             state <= STOP_COND;
           end if;
         when STOP_COND =>
-          -- Генеруємо STOP: відпускаємо SDA при високому SCL, потім чекаємо підйому SCL
+          -- Generate STOP: release SDA while SCL is high, then wait for rising edge
           sda_drive <= 'Z';
           if scl_rise = '1' then
             state <= DONE;
           end if;
         when DONE =>
-          -- транзакція завершена
+          -- transaction completed
           state <= IDLE;
       end case;
     end if;
   end process;
 
-  -- Примітка: цю частину можна рефакторити (наприклад, логіку в 'process' або
-  -- використання 'when/else' замінити іншою структурою за потреби).
   data_out <= data_out_r;
   busy <= '1' when state /= IDLE else '0';
 
 end architecture;
-
